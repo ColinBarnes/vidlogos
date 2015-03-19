@@ -13,14 +13,18 @@ db.serialize(function () {
 
 		db.run("CREATE TABLE if not exists phone (id integer PRIMARY KEY NOT NULL, person text NOT NULL, number text UNIQUE NOT NULL);",
 			function (error){
-				console.log("Error creating phone table");
-				console.log(error);
+				if (error){
+					console.log("Error creating phone table");
+					console.log(error);
+				}
 			});
 
 		db.run("CREATE TABLE if not exists text (id integer PRIMARY KEY NOT NULL, phone_id integer NOT NULL, time_stamp text NOT NULL, message text, FOREIGN KEY (phone_id) REFERENCES phone(id));",
 			function (error){
-				console.log("Error creating text table");
-				console.log(error);
+				if (error) {
+					console.log("Error creating text table");
+					console.log(error);
+				}
 			});
 	}
 });
@@ -28,7 +32,7 @@ db.serialize(function () {
 // Add messages and cosntacts to the databse
 // avoiding duplicate contacts
 function addMessage (message) {
-
+	console.log(message.datetime);
 	db.serialize(function () {
 
 		// Add contact if they don't exist
@@ -52,12 +56,25 @@ function addMessage (message) {
 
 // Folder with all of the Google Voice logs
 var file_path = './Takeout/Voice/Calls/';
-var files = [];
+
 
 // Get a list of all the files in the folder
+/*
+var files = [];
 fs.readdir(file_path, function (err, output){
+	if (err) {
+		console.log("Error reading files");
+		conosle.log(err);
+	}
 	files = output;
+	console.log('output: ' +  output.length);
+	console.log('files: ' + files.length);
 });
+*/
+
+files = fs.readdirSync(file_path);
+
+console.log("Files: " + files.length);
 
 //  Grab only the text logs
 var re = /- Text -/;
@@ -66,12 +83,12 @@ files = files.filter(function (element) {
 	return re.test(element);
 });
 
-
 // Loop through all of the text logs and load them into the database
 var file;
 var $;
 
 for (var i=0; i < files.length; i++) {
+	console.log(i);
 	file = fs.readFileSync(file_name);
 	$ = cheerio.load(file);
 
