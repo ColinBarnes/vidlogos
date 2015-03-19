@@ -1,0 +1,15 @@
+{
+  "name": "google-voice-visualizer",
+  "version": "1.0.0",
+  "description": "Visualize Google Voice text messages.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Colin Barnes",
+  "license": "ISC",
+  "dependencies": {
+    "cheerio": "^0.18.0",
+    "sqlite3": "^3.0.5"
+  }
+}
