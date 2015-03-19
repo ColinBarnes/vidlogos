@@ -14,7 +14,7 @@ db.serialize(function () {
 			CREATE TABLE if not exists phone (
 				id  			integer					PRIMARY KEY NOT NULL,
 				person			text					NOT NULL,
-				number			text					NOT NULL UNIQUE,
+				number			text					UNIQUE NOT NULL,
 
 				PRIMARY KEY(id),
 			);
@@ -36,10 +36,23 @@ db.serialize(function () {
 // avoiding duplicate contacts
 function addMessage (message) {
 
-	// Add contact if they don't exist
+	db.serialize(function () {
+		
+		// Add contact if they don't exist
+		db.run("INSERT OR IGNORE INTO phone(person, number) VALUES(?, ?)", 
+			[message.person, message.number]);
 
-	// Add message content
+		// Grab phone_id
+		db.get("SELECT id FROM phone WHERE number = ?", 
+			message.number,
+			function (error, row){
+				var phone_id = row.id;
+			});
 
+		// Add message content
+		db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
+			[phone_id, message.datetime, message.content]);
+	});
 }
 
 // Scrape ==================================================
@@ -77,11 +90,12 @@ for (var i=0; i < files.length; i++) {
 
 		// Grab the telephone number in 'tel:+##########' format
 		var number = $(this).find('.tel').attr('href');
+
 		// Remove any non digits
 		number = number.replace(/[^\d]/g, '');
 
 		// Grab the name of the sender
-		var name = $(this).find('.fn').text();
+		var person = $(this).find('.fn').text();
 
 		// Grab the message
 		var content = $(this).find('q').text();
@@ -89,7 +103,7 @@ for (var i=0; i < files.length; i++) {
 		addMessage({
 			datetime: datetime,
 			number: number,
-			name: name,
+			person: person,
 			content: content
 		});
 
