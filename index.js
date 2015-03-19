@@ -10,8 +10,18 @@ var db = new sqlite3.Database(db_file);
 
 db.serialize(function () {
 	if (!db_exists) {
-		db.run("CREATE TABLE if not exists phone (id integer PRIMARY KEY NOT NULL, person text NOT NULL, number text UNIQUE NOT NULL;");
-		db.run("CREATE TABLE if not exists text (id integer PRIMARY KEY NOT NULL, phone_id integer NOT NULL, time_stamp text NOT NULL, message text, FOREIGN KEY (phone_id) REFERENCES phone(id));");
+
+		db.run("CREATE TABLE if not exists phone (id integer PRIMARY KEY NOT NULL, person text NOT NULL, number text UNIQUE NOT NULL);",
+			function (error){
+				console.log("Error creating phone table");
+				console.log(error);
+			});
+
+		db.run("CREATE TABLE if not exists text (id integer PRIMARY KEY NOT NULL, phone_id integer NOT NULL, time_stamp text NOT NULL, message text, FOREIGN KEY (phone_id) REFERENCES phone(id));",
+			function (error){
+				console.log("Error creating text table");
+				console.log(error);
+			});
 	}
 });
 
