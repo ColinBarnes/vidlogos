@@ -32,7 +32,7 @@ db.serialize(function () {
 // Add messages and cosntacts to the databse
 // avoiding duplicate contacts
 function addMessage (message) {
-	console.log(message.datetime);
+	var phone_id = '';
 	db.serialize(function () {
 
 		// Add contact if they don't exist
@@ -43,12 +43,13 @@ function addMessage (message) {
 		db.get("SELECT id FROM phone WHERE number = ?", 
 			message.number,
 			function (error, row){
-				var phone_id = row.id;
-			});
+				console.log('row.id: ' + row.id);
+				phone_id = row.id;
 
-		// Add message content
-		db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
-			[phone_id, message.datetime, message.content]);
+				db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
+					[phone_id, message.datetime, message.content]);
+			});
+		
 	});
 }
 
@@ -74,8 +75,6 @@ fs.readdir(file_path, function (err, output){
 
 files = fs.readdirSync(file_path);
 
-console.log("Files: " + files.length);
-
 //  Grab only the text logs
 var re = /- Text -/;
 
@@ -88,8 +87,8 @@ var file;
 var $;
 
 for (var i=0; i < files.length; i++) {
-	console.log(i);
-	file = fs.readFileSync(file_name);
+	console.log(toString(i) + " of " + files.length);
+	file = fs.readFileSync(file_path + files[i]);
 	$ = cheerio.load(file);
 
 	$('.message').each(function () {
