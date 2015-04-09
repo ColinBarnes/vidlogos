@@ -1,4 +1,3 @@
-
 var width = document.body.clientWidth -30,
 	height = 600;
 
@@ -13,8 +12,16 @@ var xScale = d3.time.scale()
 var yScale = d3.scale.linear()
 	.range([height, 0]);
 
+/*
 var colorScale = d3.scale.ordinal()
 	.range(colorbrewer.YlGnBu[9]);
+*/
+
+var maleScale = d3.scale.ordinal()
+	.range(colorbrewer.Blues[9]);
+
+var femaleScale = d3.scale.ordinal()
+	.range(colorbrewer.RdPu[9]);
 
 // Date format for monthly data
 var format = d3.time.format('%Y-%m');
@@ -41,10 +48,11 @@ var area = d3.svg.area()
 
 var layers = {};
 
-d3.csv('./data.csv', function (data) {
+d3.csv('./full_data.csv', function (data) {
 	data.forEach(function (d) {
 		d.date = format.parse(d.date);
 		d.value = +d.value;
+		d.is_female = +d.is_female;
 	});
 
 	layers = stack(nest.entries(data));
@@ -57,10 +65,6 @@ d3.csv('./data.csv', function (data) {
 		return d.y0 + d.y;
 	})]);
 
-	colorScale.domain([0, d3.max(data, function (d) {
-		return parseInt(d.person);
-	})])
-
 	// Create a path for each person in the dataset
 	svg.selectAll(".layer")
 		.data(layers)
@@ -70,7 +74,13 @@ d3.csv('./data.csv', function (data) {
 	  		return area(d.values);
 	  	})
 	  	.attr("fill", function (d, i){
-	  		return colorScale(i);
+	  		if(d.values[0].is_female == 1){
+	  			return femaleScale(i);
+	  		} else if(d.values[0].is_female == 0){
+	  			return maleScale(i);
+	  		} else {
+	  			console.log("Error reading is_female flag:" + toString(d.values[0].is_female));
+	  		}
 	  	});
 });
 
