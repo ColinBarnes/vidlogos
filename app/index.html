@@ -3,21 +3,151 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Vidlogos</title>
+	<style>
+		body {
+			font-family: "Helvetica";
+		}
+		.uploader {
+			width: 250px;
+			height: 250px;
+			border: dashed 5px #CCC;
+		}
+	</style>
 </head>
 <body>
-	Upload Files
+	<h1>Vidlogos</h1>
 	<div class="uploader">
-
+		Drag your .zip from Google Takeout here.
 	</div>
 	<script>
+		var AdmZip = require('adm-zip'),
+			cheerio = require('cheerio'),
+			fs =  require('fs'),
+			sqlite3 = require('sqlite3').verbose();
+
+		// Create Database ============================================
+		var db_file = 'messages.db';
+		var db_exists = fs.existsSync(db_file);
+		var db = new sqlite3.Database(db_file);
+
+		db.serialize(function () {
+			if (!db_exists) {
+
+				db.run("CREATE TABLE if not exists phone (id integer PRIMARY KEY NOT NULL, person text NOT NULL, number text UNIQUE NOT NULL);",
+					function (error){
+						if (error){
+							console.log("Error creating phone table");
+							console.log(error);
+						}
+					});
+
+				db.run("CREATE TABLE if not exists text (id integer PRIMARY KEY NOT NULL, phone_id integer NOT NULL, time_stamp text NOT NULL, message text, FOREIGN KEY (phone_id) REFERENCES phone(id));",
+					function (error){
+						if (error) {
+							console.log("Error creating text table");
+							console.log(error);
+						}
+					});
+			}
+		});
+
+		// Add messages and cosntacts to the databse
+		// avoiding duplicate contacts
+		function addMessage (message) {
+			var phone_id = '';
+			db.serialize(function () {
+
+				// Add contact if they don't exist
+				db.run("INSERT OR IGNORE INTO phone(person, number) VALUES(?, ?)", 
+					[message.person, message.number]);
+
+				// Grab phone_id
+				db.get("SELECT id FROM phone WHERE number = ?", 
+					message.number,
+					function (error, row){
+						console.log('row.id: ' + row.id);
+						phone_id = row.id;
+
+						db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
+							[phone_id, message.datetime, message.content]);
+					});
+				
+			});
+		}
+
+		// Scrape =====================================================
+		function scrape () {
+			// Folder with all of the Google Voice logs
+			var file_path = './tmp/Takeout/Voice/Calls/';
+
+			files = fs.readdirSync(file_path);
+
+			//  Grab only the text logs
+			var re = /- Text -/;
+
+			files = files.filter(function (element) {
+				return re.test(element);
+			});
+
+			// Loop through all of the text logs and load them into the database
+			var file;
+			var $;
+
+			for (var i=0; i < files.length; i++) {
+				console.log(toString(i) + " of " + files.length);
+				file = fs.readFileSync(file_path + files[i]);
+				$ = cheerio.load(file);
+
+				$('.message').each(function () {
+
+					// Grab the timestamp
+					// Format is YYYY-MM-DDTHH:MM:SS.SSSZ
+					var datetime = $(this).find('.dt').attr('title'); 
+
+					// Grab the telephone number in 'tel:+##########' format
+					var number = $(this).find('.tel').attr('href');
+
+					// Remove any non digits
+					number = number.replace(/[^\d]/g, '');
+
+					// Grab the name of the sender
+					var person = $(this).find('.fn').text();
+
+					// Grab the message
+					var content = $(this).find('q').text();
+
+					addMessage({
+						datetime: datetime,
+						number: number,
+						person: person,
+						content: content
+					});
+				});
+			}
+			console.log("DONE!");
+		}
+
 		// prevent default behavior from changing page on dropped file
-		window.ondragover = function(e) { e.preventDefault(); return false };
-		window.ondrop = function(e) { e.preventDefault(); return false };
+		window.ondragover = function(e) { 
+			e.preventDefault(); 
+			return false; 
+		};
+
+		window.ondrop = function(e) { 
+			e.preventDefault(); 
+			return false; 
+		};
 
 		var uploader = document.getElementsByClassName("uploader")[0];
 
 		uploader.ondrop = function (e) {
 			e.preventDefault;
+			var file = e.dataTransfer.files[0];
+			console.log(file.path);
+
+			var zip = new AdmZip(file.path);
+			zip.extractAllTo("./tmp/", true);
+			scrape();
 		}
 	</script>
 </body>
