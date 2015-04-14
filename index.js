@@ -1,6 +1,6 @@
-var fs =  require('fs');
-var cheerio = require('cheerio');
-var sqlite3 = require('sqlite3').verbose();
+var fs =  require('fs'),
+	cheerio = require('cheerio'),
+	sqlite3 = require('sqlite3').verbose();
 
 // Database ========================================
 

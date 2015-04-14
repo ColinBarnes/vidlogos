@@ -147,37 +147,31 @@ ON people_dates.person = user_counts.phone_id
 WITH dates AS (SELECT DISTINCT strftime('%Y-%m', time_stamp) AS month FROM text ORDER BY month), people AS (SELECT id AS person FROM phone WHERE id <> 1), people_dates AS (SELECT person, month FROM people CROSS JOIN dates), user_counts AS (SELECT phone_id, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count FROM text GROUP BY phone_id, month) SELECT person, people_dates.month, ifnull(count, 0) FROM people_dates LEFT JOIN user_counts ON people_dates.person = user_counts.phone_id AND people_dates.month = user_counts.month;
 
 
--- Texts by user by month; include user name, phone number, and gender
-SELECT phone_id, person, number, is_female, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count 
-FROM text, phone 
-WHERE phone.id=phone_id 
-GROUP BY phone_id, month;
-
--- (Without Me) Number of texts sent per person by month;  include user name, phone number, and gender
+--// Attempt to add in name, number, and gender
+-- (Without Me) Number of texts sent per person by month
 WITH dates AS (
         SELECT DISTINCT strftime('%Y-%m', time_stamp) AS month 
         FROM text 
         ORDER BY month
     ), people AS (
-        SELECT id AS person_id
+        SELECT id AS person, person AS name, number, is_female
         FROM phone
         WHERE id <> 1
     ), people_dates AS (
-        SELECT person_id, month
+        SELECT person, name, number, is_female, month
         FROM people
         CROSS JOIN dates
     ), user_counts AS (
-        SELECT phone_id, person, number, is_female, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count 
-        FROM text, phone 
-        WHERE phone.id=text.phone_id
+        SELECT phone_id, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count
+        FROM text
         GROUP BY phone_id, month
     )
-SELECT person_id, user_counts.person, number, is_female, people_dates.month, ifnull(count, 0)
+SELECT person, name, number, is_female, people_dates.month, ifnull(count, 0)
 FROM people_dates
 LEFT JOIN user_counts
-ON people_dates.person_id = user_counts.phone_id
+ON people_dates.person = user_counts.phone_id
     AND people_dates.month = user_counts.month;
 
--- One liner of above
-WITH dates AS (         SELECT DISTINCT strftime('%Y-%m', time_stamp) AS month          FROM text          ORDER BY month     ), people AS (         SELECT id AS person_id         FROM phone         WHERE id <> 1     ), people_dates AS (         SELECT person_id, month         FROM people         CROSS JOIN dates     ), user_counts AS (         SELECT phone_id, person, number, is_female, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count          FROM text, phone          WHERE phone.id=text.phone_id         GROUP BY phone_id, month     ) SELECT person_id, person, number, is_female, people_dates.month, ifnull(count, 0) FROM people_dates LEFT JOIN user_counts ON people_dates.person_id = user_counts.phone_id     AND people_dates.month = user_counts.month;
+-- Oneliner of above
 
+WITH dates AS (         SELECT DISTINCT strftime('%Y-%m', time_stamp) AS month          FROM text          ORDER BY month     ), people AS (         SELECT id AS person, person AS name, number, is_female         FROM phone         WHERE id <> 1     ), people_dates AS (         SELECT person, name, number, is_female, month         FROM people         CROSS JOIN dates     ), user_counts AS (         SELECT phone_id, strftime('%Y-%m', time_stamp) as month, count(phone_id) as count         FROM text         GROUP BY phone_id, month     ) SELECT person, name, number, is_female, people_dates.month, ifnull(count, 0) FROM people_dates LEFT JOIN user_counts ON people_dates.person = user_counts.phone_id     AND people_dates.month = user_counts.month; 

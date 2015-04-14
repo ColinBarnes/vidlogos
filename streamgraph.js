@@ -12,11 +12,7 @@ var xScale = d3.time.scale()
 var yScale = d3.scale.linear()
 	.range([height, 0]);
 
-/*
-var colorScale = d3.scale.ordinal()
-	.range(colorbrewer.YlGnBu[9]);
-*/
-
+// Color scales
 var maleScale = d3.scale.ordinal()
 	.range(colorbrewer.Blues[9]);
 
@@ -76,10 +72,8 @@ d3.csv('./full_data.csv', function (data) {
 	  	.attr("fill", function (d, i){
 	  		if(d.values[0].is_female == 1){
 	  			return femaleScale(i);
-	  		} else if(d.values[0].is_female == 0){
-	  			return maleScale(i);
 	  		} else {
-	  			console.log("Error reading is_female flag:" + toString(d.values[0].is_female));
+	  			return maleScale(i);
 	  		}
 	  	});
 });

@@ -3,6 +3,8 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Vidlogos</title>
+	<script src="./js/lib/d3/d3.js"></script>
+	<script src="./js/lib/d3/colorbrewer.js"></script>
 	<style>
 		body {
 			font-family: "Helvetica";
@@ -65,7 +67,6 @@
 				db.get("SELECT id FROM phone WHERE number = ?", 
 					message.number,
 					function (error, row){
-						console.log('row.id: ' + row.id);
 						phone_id = row.id;
 
 						db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
@@ -77,6 +78,9 @@
 
 		// Scrape =====================================================
 		function scrape () {
+
+			changeText("Extracting files...");
+
 			// Folder with all of the Google Voice logs
 			var file_path = './tmp/Takeout/Voice/Calls/';
 
@@ -94,7 +98,6 @@
 			var $;
 
 			for (var i=0; i < files.length; i++) {
-				console.log(toString(i) + " of " + files.length);
 				file = fs.readFileSync(file_path + files[i]);
 				$ = cheerio.load(file);
 
@@ -124,8 +127,9 @@
 					});
 				});
 			}
-			console.log("DONE!");
 		}
+
+		// File Upload ================================================
 
 		// prevent default behavior from changing page on dropped file
 		window.ondragover = function(e) { 
@@ -140,13 +144,21 @@
 
 		var uploader = document.getElementsByClassName("uploader")[0];
 
+		function changeText (text) {
+			uploader.innerHTML = text;
+		};
+
 		uploader.ondrop = function (e) {
 			e.preventDefault;
 			var file = e.dataTransfer.files[0];
-			console.log(file.path);
+
+			changeText("Uploaded file " + file.path);
 
 			var zip = new AdmZip(file.path);
 			zip.extractAllTo("./tmp/", true);
+
+			changeText("Takeout extracted");
+
 			scrape();
 		}
 	</script>
