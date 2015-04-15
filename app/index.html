@@ -55,23 +55,44 @@
 
 		// Add messages and cosntacts to the databse
 		// avoiding duplicate contacts
-		function addMessage (message) {
+		function addMessage (message, queue) {
 			var phone_id = '';
 			db.serialize(function () {
 
-				// Add contact if they don't exist
-				db.run("INSERT OR IGNORE INTO phone(person, number) VALUES(?, ?)", 
-					[message.person, message.number]);
-
-				// Grab phone_id
-				db.get("SELECT id FROM phone WHERE number = ?", 
-					message.number,
-					function (error, row){
-						phone_id = row.id;
-
-						db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
-							[phone_id, message.datetime, message.content]);
+				
+				var p1 = new Promise(function (resolve, reject) {
+					// Add contact if they don't exist
+					db.run("INSERT OR IGNORE INTO phone(person, number) VALUES(?, ?)", 
+					[message.person, message.number], 
+					function (err) {
+						if(err) {
+							reject(err);
+						}
+						resolve();
 					});
+				});
+
+				queue.push(p1);
+
+				var p2 = new Promise(function (resolve, reject) {
+					// Grab phone_id
+					db.get("SELECT id FROM phone WHERE number = ?", 
+						message.number,
+						function (error, row){
+							phone_id = row.id;
+
+							db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
+								[phone_id, message.datetime, message.content],
+								function (err) {
+									if(err) {
+										reject(err);
+									}
+									resolve();
+								});
+						});	
+				});
+
+				queue.push(p2);				
 				
 			});
 		}
@@ -97,9 +118,15 @@
 			var file;
 			var $;
 
+			// Number of files that have been added to the database
+			var completed = 0;
+
 			for (var i=0; i < files.length; i++) {
 				file = fs.readFileSync(file_path + files[i]);
 				$ = cheerio.load(file);
+
+				// Queue of all dabatase actions for this file
+				var promisesQeue = [];
 
 				$('.message').each(function () {
 
@@ -124,8 +151,11 @@
 						number: number,
 						person: person,
 						content: content
-					});
+					}, promisesQueue);
 				});
+
+				Promise.all(promisesQueue)
+					.then(completed++);
 			}
 		}
 
