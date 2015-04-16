@@ -126,7 +126,7 @@
 				$ = cheerio.load(file);
 
 				// Queue of all dabatase actions for this file
-				var promisesQeue = [];
+				var promisesQueue = [];
 
 				$('.message').each(function () {
 
@@ -155,7 +155,10 @@
 				});
 
 				Promise.all(promisesQueue)
-					.then(completed++);
+					.then(function () {
+						completed++;
+						changeText("Uploaded "toString(completed) + " of " + toString(files.length) + " files.");
+					});
 			}
 		}
 
@@ -179,6 +182,7 @@
 		};
 
 		uploader.ondrop = function (e) {
+			console.log("file dropped");
 			e.preventDefault;
 			var file = e.dataTransfer.files[0];
 
