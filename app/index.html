@@ -22,9 +22,10 @@
 		Drag your .zip from Google Takeout here.
 	</div>
 	<script>
-		var AdmZip = require('adm-zip'),
+		var unzip = require('unzip2'),
 			cheerio = require('cheerio'),
 			fs =  require('fs'),
+			fstream = require('fstream'),
 			sqlite3 = require('sqlite3').verbose();
 
 		// Create Database ============================================
@@ -99,7 +100,7 @@
 
 		// Scrape =====================================================
 		function scrape () {
-
+			console.log("Begin scrapping");
 			changeText("Extracting files...");
 
 			// Folder with all of the Google Voice logs
@@ -157,7 +158,8 @@
 				Promise.all(promisesQueue)
 					.then(function () {
 						completed++;
-						changeText("Uploaded "toString(completed) + " of " + toString(files.length) + " files.");
+						console.log("Uploaded %d of %d files.", completed, files.length);
+						changeText(`Uploaded ${completed} of ${files.length} files.`);
 					});
 			}
 		}
@@ -182,18 +184,36 @@
 		};
 
 		uploader.ondrop = function (e) {
-			console.log("file dropped");
+			
+			console.log("File dropped");
+
 			e.preventDefault;
+
 			var file = e.dataTransfer.files[0];
+			var readStream = fs.createReadStream(file.path);
+			var writeStream = fstream.Writer("./tmp/");
+
+			var dataSize = 0;
+
+			writeStream.on('close', function () {
+					console.log("Finished unziping");
+					changeText("Takeout extracted");
+					scrape();
+				});
+
+			/*
+			readStream.on('data', function (data) {
+					dataSize += data.length;
+					console.log("Read %d bytes.", dataSize);
+					changeText(`Read ${dataSize} bytes.`);
+				});*/
 
 			changeText("Uploaded file " + file.path);
 
-			var zip = new AdmZip(file.path);
-			zip.extractAllTo("./tmp/", true);
-
-			changeText("Takeout extracted");
-
-			scrape();
+			readStream
+				.pipe(unzip.Parse())
+				.pipe(writeStream);
+				
 		}
 	</script>
 </body>

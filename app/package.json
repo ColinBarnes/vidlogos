@@ -5,8 +5,9 @@
     "toolbar": true
   },
   "dependencies": {
-    "adm-zip": "^0.4.7",
     "cheerio": "^0.18.0",
-    "sqlite3": "^3.0.5"
+    "fstream": "^1.0.4",
+    "sqlite3": "^3.0.5",
+    "unzip": "^0.1.11"
   }
 }
