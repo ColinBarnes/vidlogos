@@ -201,14 +201,13 @@
 					scrape();
 				});
 
-			/*
 			readStream.on('data', function (data) {
 					dataSize += data.length;
-					console.log("Read %d bytes.", dataSize);
-					changeText(`Read ${dataSize} bytes.`);
-				});*/
+					console.log("Read %d bytes of %d", dataSize, file.size);
+					changeText(`Read ${dataSize} bytes of ${file.size}`);
+				});
 
-			changeText("Uploaded file " + file.path);
+			changeText("Uploaded file " + file.name);
 
 			readStream
 				.pipe(unzip.Parse())
