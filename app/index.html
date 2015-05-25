@@ -25,9 +25,12 @@
 		var unzip = require('unzip2'),
 			cheerio = require('cheerio'),
 			fs =  require('fs'),
+			fileQueue = require('filequeue'),
 			fstream = require('fstream'),
 			sqlite3 = require('sqlite3').verbose();
 
+			var fq = new fileQueue(512);
+			
 		// Create Database ============================================
 		var db_file = 'messages.db';
 		var db_exists = fs.existsSync(db_file);
@@ -106,62 +109,73 @@
 			// Folder with all of the Google Voice logs
 			var file_path = './tmp/Takeout/Voice/Calls/';
 
-			files = fs.readdirSync(file_path);
+			fs.readdir(file_path, function (err, files) {
 
-			//  Grab only the text logs
-			var re = /- Text -/;
+				//  Grab only the text logs
+				var re = /- Text -/;
 
-			files = files.filter(function (element) {
-				return re.test(element);
-			});
-
-			// Loop through all of the text logs and load them into the database
-			var file;
-			var $;
-
-			// Number of files that have been added to the database
-			var completed = 0;
-
-			for (var i=0; i < files.length; i++) {
-				file = fs.readFileSync(file_path + files[i]);
-				$ = cheerio.load(file);
-
-				// Queue of all dabatase actions for this file
-				var promisesQueue = [];
-
-				$('.message').each(function () {
-
-					// Grab the timestamp
-					// Format is YYYY-MM-DDTHH:MM:SS.SSSZ
-					var datetime = $(this).find('.dt').attr('title'); 
-
-					// Grab the telephone number in 'tel:+##########' format
-					var number = $(this).find('.tel').attr('href');
-
-					// Remove any non digits
-					number = number.replace(/[^\d]/g, '');
-
-					// Grab the name of the sender
-					var person = $(this).find('.fn').text();
-
-					// Grab the message
-					var content = $(this).find('q').text();
-
-					addMessage({
-						datetime: datetime,
-						number: number,
-						person: person,
-						content: content
-					}, promisesQueue);
+				files = files.filter(function (element) {
+					return re.test(element);
 				});
 
-				Promise.all(promisesQueue)
-					.then(function () {
-						completed++;
-						console.log("Uploaded %d of %d files.", completed, files.length);
-						changeText(`Uploaded ${completed} of ${files.length} files.`);
+				console.log("%d text files", files.length);
+
+				// Loop through all of the text logs and load them into the database
+
+				//// Number of files that have been added to the database
+				var completed = 0;
+
+				files.forEach(function (file_name) {
+					fq.readFile(file_path + file_name, function (err, file) {
+						if(err) {
+							throw err;
+						}
+						console.log("Loading " + file_path + file_name);
+						if(!file) {
+							console.log("No data in file");
+						} else {
+							var $ = cheerio.load(file);
+
+							// Queue of all dabatase actions for this file
+							var promisesQueue = [];
+
+							$('.message').each(function () {
+
+								// Grab the timestamp
+								// Format is YYYY-MM-DDTHH:MM:SS.SSSZ
+								var datetime = $(this).find('.dt').attr('title'); 
+
+								// Grab the telephone number in 'tel:+##########' format
+								var number = $(this).find('.tel').attr('href');
+
+								// Remove any non digits
+								number = number.replace(/[^\d]/g, '');
+
+								// Grab the name of the sender
+								var person = $(this).find('.fn').text();
+
+								// Grab the message
+								var content = $(this).find('q').text();
+
+								addMessage({
+									datetime: datetime,
+									number: number,
+									person: person,
+									content: content
+								}, promisesQueue);
+							});
+
+							Promise.all(promisesQueue)
+								.then(function () {
+									completed++;
+									console.log("Uploaded %d of %d files.", completed, files.length);
+									changeText(`Uploaded ${completed} of ${files.length} files.`);
+								});
+						}
+						
 					});
-			}
+				});
+			});
 		}
 
 		// File Upload ================================================
@@ -195,17 +209,20 @@
 
 			var dataSize = 0;
 
+			// Read the zip file
+			readStream.on('data', function (data) {
+					dataSize += data.length;
+					console.log("Read %d bytes of %d", dataSize, file.size);
+					changeText(`Read ${dataSize} bytes of ${file.size}`);
+				});
+
+			// Extract the zip file
 			writeStream.on('close', function () {
 					console.log("Finished unziping");
 					changeText("Takeout extracted");
 					scrape();
 				});
 
-			readStream.on('data', function (data) {
-					dataSize += data.length;
-					console.log("Read %d bytes of %d", dataSize, file.size);
-					changeText(`Read ${dataSize} bytes of ${file.size}`);
-				});
 
 			changeText("Uploaded file " + file.name);
 
