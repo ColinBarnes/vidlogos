@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Vidlogos</title>
+	<script src="./js/lib/d3/d3.js"></script>
+	<script src="./js/lib/d3/colorbrewer.js"></script>
+	<style>
+		body {
+			font-family: "Helvetica";
+		}
+		.uploader {
+			width: 250px;
+			height: 250px;
+			border: dashed 5px #CCC;
+		}
+	</style>
+</head>
+<body>
+	<h1>Vidlogos</h1>
+	<div class="uploader">
+		Drag your .zip from Google Takeout here.
+	</div>
+	<script>
+		var unzip = require('unzip2'),
+			Zip = require('adm-zip'),
+			cheerio = require('cheerio'),
+			fs =  require('fs'),
+			fileQueue = require('filequeue'),
+			fstream = require('fstream'),
+			sqlite3 = require('sqlite3').verbose();
+
+			var fq = new fileQueue(512);
+			
+		// Create Database ============================================
+		var db_file = 'messages.db';
+		var db_exists = fs.existsSync(db_file);
+		var db = new sqlite3.Database(db_file);
+
+		db.serialize(function () {
+			if (!db_exists) {
+
+				db.run("CREATE TABLE if not exists phone (id integer PRIMARY KEY NOT NULL, person text NOT NULL, number text UNIQUE NOT NULL);",
+					function (error){
+						if (error){
+							console.log("Error creating phone table");
+							console.log(error);
+						}
+					});
+
+				db.run("CREATE TABLE if not exists text (id integer PRIMARY KEY NOT NULL, phone_id integer NOT NULL, time_stamp text NOT NULL, message text, FOREIGN KEY (phone_id) REFERENCES phone(id));",
+					function (error){
+						if (error) {
+							console.log("Error creating text table");
+							console.log(error);
+						}
+					});
+			}
+		});
+
+		// Add messages and cosntacts to the databse
+		// avoiding duplicate contacts
+		function addMessage (message, queue) {
+			var phone_id = '';
+			db.serialize(function () {
+
+				
+				var p1 = new Promise(function (resolve, reject) {
+					// Add contact if they don't exist
+					db.run("INSERT OR IGNORE INTO phone(person, number) VALUES(?, ?)", 
+					[message.person, message.number], 
+					function (err) {
+						if(err) {
+							reject(err);
+						}
+						resolve();
+					});
+				});
+
+				queue.push(p1);
+
+				var p2 = new Promise(function (resolve, reject) {
+					// Grab phone_id
+					db.get("SELECT id FROM phone WHERE number = ?", 
+						message.number,
+						function (error, row){
+							phone_id = row.id;
+
+							db.run("INSERT INTO text(phone_id, time_stamp, message) VALUES(?, ?, ?)", 
+								[phone_id, message.datetime, message.content],
+								function (err) {
+									if(err) {
+										reject(err);
+									}
+									resolve();
+								});
+						});	
+				});
+
+				queue.push(p2);				
+				
+			});
+		}
+
+		// Scrape =====================================================
+		function scrape () {
+			console.log("Begin scrapping");
+			changeText("Extracting files...");
+
+			// Folder with all of the Google Voice logs
+			var file_path = './tmp/Takeout/Voice/Calls/';
+
+			fs.readdir(file_path, function (err, files) {
+
+				//  Grab only the text logs
+				var re = /- Text -/;
+
+				files = files.filter(function (element) {
+					return re.test(element);
+				});
+
+				console.log("%d text files", files.length);
+
+				// Loop through all of the text logs and load them into the database
+
+				//// Number of files that have been added to the database
+				var completed = 0;
+
+				files.forEach(function (file_name) {
+					fq.readFile(file_path + file_name, function (err, file) {
+						if(err) {
+							throw err;
+						}
+						console.log("Loading " + file_path + file_name);
+						if(!file) {
+							console.log("No data in file");
+						} else {
+							var $ = cheerio.load(file);
+
+							// Queue of all dabatase actions for this file
+							var promisesQueue = [];
+
+							$('.message').each(function () {
+
+								// Grab the timestamp
+								// Format is YYYY-MM-DDTHH:MM:SS.SSSZ
+								var datetime = $(this).find('.dt').attr('title'); 
+
+								// Grab the telephone number in 'tel:+##########' format
+								var number = $(this).find('.tel').attr('href');
+
+								// Remove any non digits
+								number = number.replace(/[^\d]/g, '');
+
+								// Grab the name of the sender
+								var person = $(this).find('.fn').text();
+
+								// Grab the message
+								var content = $(this).find('q').text();
+
+								addMessage({
+									datetime: datetime,
+									number: number,
+									person: person,
+									content: content
+								}, promisesQueue);
+							});
+
+							Promise.all(promisesQueue)
+								.then(function () {
+									completed++;
+									console.log("Uploaded %d of %d files.", completed, files.length);
+									changeText(`Uploaded ${completed} of ${files.length} files.`);
+								});
+						}
+						
+					});
+				});
+			});
+		}
+
+		// File Upload ================================================
+
+		// prevent default behavior from changing page on dropped file
+		window.ondragover = function(e) { 
+			e.preventDefault(); 
+			return false; 
+		};
+
+		window.ondrop = function(e) { 
+			e.preventDefault(); 
+			return false; 
+		};
+
+		var uploader = document.getElementsByClassName("uploader")[0];
+
+		function changeText (text) {
+			uploader.innerHTML = text;
+		};
+
+		uploader.ondrop = function (e) {
+			
+			console.log("File dropped");
+
+			e.preventDefault;
+
+			var file = e.dataTransfer.files[0];
+
+			var zip = new Zip(file.path);
+
+			zip.getEntries().forEach(function (entry) {
+				console.log(entry.entryName);
+				var decompressedData = zip.readFile(entry);
+				var $ = cheerio.load(decompressedData);
+			});
+
+			/**
+			var readStream = fs.createReadStream(file.path);
+			var writeStream = fstream.Writer("./tmp/");
+
+			var dataSize = 0;
+
+			// Read the zip file
+			readStream.on('data', function (data) {
+					dataSize += data.length;
+					console.log("Read %d bytes of %d", dataSize, file.size);
+					changeText(`Read ${dataSize} bytes of ${file.size}`);
+				});
+
+			// Extract the zip file
+			writeStream.on('close', function () {
+					console.log("Finished unziping");
+					changeText("Takeout extracted");
+					scrape();
+				});
+
+
+			changeText("Uploaded file " + file.name);
+
+			readStream
+				.pipe(unzip.Parse())
+				.pipe(writeStream);
+			**/
+				
+		}
+	</script>
+</body>
+</html>
